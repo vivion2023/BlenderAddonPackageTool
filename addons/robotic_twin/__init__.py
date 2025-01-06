@@ -38,6 +38,18 @@ def register_axis_properties():
         default='axis_1'
     )
 
+    # 轴值属性
+    bpy.types.Scene.axis_values = bpy.props.FloatVectorProperty(
+        name="轴值",
+        size=6,
+        description="6个轴的值",
+        default=(0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+        min=-360.0,
+        max=360.0,
+        subtype='NONE',
+        unit='ROTATION'
+    )
+
 def register():
     # Register axis properties
     register_axis_properties()
@@ -65,9 +77,10 @@ def unregister():
     except ValueError:
         pass  # 如果已经取消注册了就忽略错误
     
-    # Remove axis properties
-    if hasattr(bpy.types.Scene, "axis_selection"):
-        del bpy.types.Scene.axis_selection
+    # Remove properties
+    for prop in ["axis_selection", "axis_values"]:
+        if hasattr(bpy.types.Scene, prop):
+            delattr(bpy.types.Scene, prop)
 
     # Unregister classes
     auto_load.unregister()
