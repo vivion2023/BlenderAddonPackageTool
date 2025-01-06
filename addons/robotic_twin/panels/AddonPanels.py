@@ -109,8 +109,9 @@ class OBJECT_OT_SetAxisValues(bpy.types.Operator):
         layout = self.layout
         for i in range(6):
             row = layout.row()
-            row.label(text=f"Axis {i+1}")
-            row.prop(self, "axis_values", index=i, text="")
+            split = row.split(factor=0.33)
+            split.label(text=f"Axis {i+1}")
+            split.prop(self, "axis_values", index=i, text="")
 
 class OBJECT_OT_ExecuteMove(bpy.types.Operator):
     bl_idname = "robotic_twin.execute_move"
@@ -134,9 +135,11 @@ class OBJECT_PT_MoveControlPanel(BasePanel, bpy.types.Panel):
         
         # 显示当前轴值的行，将弧度转换为度数显示
         row = layout.row()
+
+        split = row.split(factor=0.67)
         values = [f"{math.degrees(v):.1f}" for v in context.scene.axis_values]
-        row.operator("robotic_twin.set_axis_values", 
+        split.operator("robotic_twin.set_axis_values", 
                     text=f"({', '.join(values)})")
         
         # 移动按钮
-        row.operator("robotic_twin.execute_move", text="move")
+        split.operator("robotic_twin.execute_move", text="move")
