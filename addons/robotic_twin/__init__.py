@@ -23,7 +23,25 @@ bl_info = {
 
 _addon_properties = {}
 
+def register_axis_properties():
+    axis_items = [
+        ('axis_1', 'Axis 1', 'First axis'),
+        ('axis_2', 'Axis 2', 'Second axis'),
+        ('axis_3', 'Axis 3', 'Third axis'),
+        ('axis_4', 'Axis 4', 'Fourth axis'),
+        ('axis_5', 'Axis 5', 'Fifth axis'),
+        ('axis_6', 'Axis 6', 'Sixth axis'),
+    ]
+    bpy.types.Scene.axis_selection = bpy.props.EnumProperty(
+        items=axis_items,
+        name="Axis Selection",
+        default='axis_1'
+    )
+
 def register():
+    # Register axis properties
+    register_axis_properties()
+
     # Register classes
     auto_load.init()
     auto_load.register()
@@ -47,6 +65,10 @@ def unregister():
     except ValueError:
         pass  # 如果已经取消注册了就忽略错误
     
+    # Remove axis properties
+    if hasattr(bpy.types.Scene, "axis_selection"):
+        del bpy.types.Scene.axis_selection
+
     # Unregister classes
     auto_load.unregister()
     remove_properties(_addon_properties)

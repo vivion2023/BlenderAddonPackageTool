@@ -18,41 +18,8 @@ class BasePanel(object):
     def poll(cls, context: bpy.types.Context):
         return True
 
+
 @reg_order(0)
-class ExampleAddonPanel(BasePanel, bpy.types.Panel):
-    bl_label = "Example Addon Side Bar Panel"
-    bl_idname = "SCENE_PT_sample"
-
-    def draw(self, context: bpy.types.Context):
-        addon_prefs = context.preferences.addons[__addon_name__].preferences
-
-        layout = self.layout
-
-        layout.label(text=i18n("Example Functions") + ": " + str(addon_prefs.number))
-        layout.prop(addon_prefs, "filepath")
-        layout.separator()
-
-        row = layout.row()
-        row.prop(addon_prefs, "number")
-        row.prop(addon_prefs, "boolean")
-
-        layout.operator(ExampleOperator.bl_idname)
-
-    @classmethod
-    def poll(cls, context: bpy.types.Context):
-        return True
-
-@reg_order(1)
-class ExampleAddonPanel2(BasePanel, bpy.types.Panel):
-    bl_label = "Example Addon Side Bar Panel"
-    bl_idname = "SCENE_PT_sample2"
-
-    def draw(self, context: bpy.types.Context):
-        layout = self.layout
-        layout.label(text="Second Panel")
-        layout.operator(ExampleOperator.bl_idname)
-
-@reg_order(2)
 class OBJECT_PT_CustomPanel(BasePanel, bpy.types.Panel):
     bl_label = "Websocket连接"
     bl_idname = "OBJECT_PT_custom_panel"
@@ -95,3 +62,18 @@ class OBJECT_PT_CustomPanel(BasePanel, bpy.types.Panel):
         layout.operator(config['operator'], text=config['op_text'])
         layout.separator()
         layout.operator("robotic_twin.move_cube_random", text="随机移动物体")
+
+@reg_order(1)  # 设置为1，让它在websocket面板之后显示
+class OBJECT_PT_AxisBindingPanel(BasePanel, bpy.types.Panel):
+    bl_label = "选择各个轴绑定的骨骼"
+    bl_idname = "OBJECT_PT_axis_binding_panel"
+
+    def draw(self, context):
+        layout = self.layout
+        
+        # 创建下拉框
+        row = layout.row()
+        row.prop(context.scene, "axis_selection", text="")
+        
+        # 创建绑定按钮
+        layout.operator("robotic_twin.bind_axis", text="绑定")
