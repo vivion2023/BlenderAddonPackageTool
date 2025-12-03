@@ -12,8 +12,8 @@ bl_info = {
     "name": "机器人孪生",
     "author": "[yingshuming]",
     "blender": (3, 5, 0),
-    "version": (0, 0, 1),
-    "description": "This is a template for building addons",
+    "version": (0, 1, 0),
+    "description": "Blender 与视觉引导系统通信的数字孪生插件",
     "warning": "",
     "doc_url": "[documentation url]",
     "tracker_url": "[contact email]",
@@ -71,6 +71,20 @@ def register():
     print("{} addon is installed.".format(__addon_name__))
 
 def unregister():
+    # 清理应用资源
+    try:
+        from .core.app import cleanup_app
+        cleanup_app()
+    except Exception as e:
+        print(f"Error cleaning up app: {e}")
+    
+    # 清理传输层
+    try:
+        from .transport.websocket_manager import cleanup_websocket_manager
+        cleanup_websocket_manager()
+    except Exception as e:
+        print(f"Error cleaning up WebSocket: {e}")
+    
     # Internationalization
     try:
         bpy.app.translations.unregister(__addon_name__)
