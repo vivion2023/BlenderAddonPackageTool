@@ -37,6 +37,19 @@ def register_axis_properties():
         name="Axis Selection",
         default='axis_1'
     )
+    
+    # 旋转轴方向属性
+    rotation_axis_items = [
+        ('X', 'X', '绕X轴旋转'),
+        ('Y', 'Y', '绕Y轴旋转'),
+        ('Z', 'Z', '绕Z轴旋转'),
+    ]
+    bpy.types.Scene.rotation_axis = bpy.props.EnumProperty(
+        items=rotation_axis_items,
+        name="Rotation Axis",
+        description="骨骼旋转的坐标轴方向",
+        default='Z'
+    )
 
     # 轴值属性
     bpy.types.Scene.axis_values = bpy.props.FloatVectorProperty(
@@ -92,7 +105,7 @@ def unregister():
         pass  # 如果已经取消注册了就忽略错误
     
     # Remove properties
-    for prop in ["axis_selection", "axis_values"]:
+    for prop in ["axis_selection", "axis_values", "rotation_axis"]:
         if hasattr(bpy.types.Scene, prop):
             delattr(bpy.types.Scene, prop)
 

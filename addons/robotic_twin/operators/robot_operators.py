@@ -106,6 +106,44 @@ class ROBOT_OT_BindAxis(bpy.types.Operator):
             return {'CANCELLED'}
         
         selected_axis = context.scene.axis_selection
-        active_bone.bone.name = selected_axis
-        self.report({'INFO'}, f"Bone bound to {selected_axis}")
+        rotation_axis = context.scene.rotation_axis
+        
+        # 将绑定信息存储到骨骼的自定义属性中
+        bone = active_bone.bone
+        bone["robot_axis"] = selected_axis
+        bone["rotation_axis"] = rotation_axis
+        
+        # 设置为轴角模式，当前姿态即为初始状态（角度0）
+        axis_values = {'X': (1, 0, 0), 'Y': (0, 1, 0), 'Z': (0, 0, 1)}.get(rotation_axis, (0, 0, 1))
+        active_bone.rotation_mode = 'AXIS_ANGLE'
+        active_bone.rotation_axis_angle = (0, axis_values[0], axis_values[1], axis_values[2])
+        
+        self.report({'INFO'}, f"bone: '{bone.name}' bound to {selected_axis}, axis: {rotation_axis}")
+        return {'FINISHED'}
+
+
+class ROBOT_OT_UnbindAxis(bpy.types.Operator):
+    """取消骨骼的轴绑定"""
+    bl_idname = "robotic_twin.unbind_axis"
+    bl_label = "取消绑定"
+    
+    @classmethod
+    def poll(cls, context):
+        if context.mode != 'POSE' or context.active_pose_bone is None:
+            return False
+        # 只有已绑定的骨骼才能取消绑定
+        bone = context.active_pose_bone.bone
+        return "robot_axis" in bone
+    
+    def execute(self, context):
+        bone = context.active_pose_bone.bone
+        bone_name = bone.name
+        
+        # 删除自定义属性
+        if "robot_axis" in bone:
+            del bone["robot_axis"]
+        if "rotation_axis" in bone:
+            del bone["rotation_axis"]
+        
+        self.report({'INFO'}, f"bone: '{bone_name}' unbound")
         return {'FINISHED'}

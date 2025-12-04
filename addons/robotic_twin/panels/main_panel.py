@@ -80,4 +80,19 @@ class RT_PT_AxisBindingPanel(BasePanel, bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         layout.prop(context.scene, "axis_selection", text="选择轴")
-        layout.operator("robotic_twin.bind_axis", text="绑定选中骨骼")
+        layout.prop(context.scene, "rotation_axis", text="旋转轴方向")
+        
+        row = layout.row(align=True)
+        row.operator("robotic_twin.bind_axis", text="绑定")
+        row.operator("robotic_twin.unbind_axis", text="取消绑定")
+        
+        # 显示当前选中骨骼的绑定信息
+        if context.mode == 'POSE' and context.active_pose_bone:
+            bone = context.active_pose_bone.bone
+            box = layout.box()
+            box.label(text=f"骨骼: {bone.name}", icon='BONE_DATA')
+            if "robot_axis" in bone:
+                box.label(text=f"绑定轴: {bone['robot_axis']}")
+                box.label(text=f"旋转方向: {bone.get('rotation_axis', 'Z')}")
+            else:
+                box.label(text="未绑定", icon='INFO')
