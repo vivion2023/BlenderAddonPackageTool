@@ -63,6 +63,38 @@ class MessageBuilder:
         msg = Message.create(MessageType.IMAGE_FRAME, payload, self.client_id, metadata=metadata)
         return msg
     
+    # ==================== 运动指令消息 ====================
+    
+    def build_motion_command(self, joint_angles: List[float], 
+                             joint_names: List[str],
+                             execution_target: List[str] = None,
+                             speed: float = 0.2,
+                             acceleration: float = 0.1) -> Message:
+        """构建关节运动指令消息"""
+        payload = {
+            "command_id": str(uuid.uuid4()),
+            "command_type": "move_joint",
+            "execution_target": execution_target or ["blender", "robot"],
+            "motion_data": {
+                "joint_angles": joint_angles,
+                "joint_names": joint_names
+            },
+            "motion_params": {
+                "speed": speed,
+                "acceleration": acceleration,
+                "motion_type": "joint_space"
+            },
+            "safety": {
+                "collision_check": True,
+                "workspace_check": True,
+                "max_velocity": 1.0
+            }
+        }
+        metadata = Metadata(priority=1, ttl=30000)
+        target = Target(client_type="all")
+        return Message.create(MessageType.MOTION_COMMAND, payload, self.client_id, 
+                              target=target, metadata=metadata)
+    
     # ==================== 指令确认消息 ====================
     
     def build_command_ack(self, command_id: str, status: CommandAckStatus, 

@@ -69,24 +69,25 @@ class ROBOT_OT_SendMoveCommand(bpy.types.Operator):
     
     def execute(self, context):
         app = get_app()
-        import uuid
-        from ..protocol.message import Message, MessageType
         
-        joint_angles = app.get_joint_angles()
-        payload = {
-            "command_id": str(uuid.uuid4()),
-            "command_type": "move_joint",
-            "motion_data": {
-                "joint_angles": joint_angles,
-                "joint_names": app.robot_controller.get_joint_names()
-            }
-        }
+        # 获取当前各轴角度（弧度）
+        joint_angles = app.robot_controller.get_joint_angles()
+        joint_names = app.robot_controller.get_joint_names()
         
-        msg = Message.create(MessageType.MOTION_COMMAND, payload, app.ws_manager.client_id)
+        # 使用 MessageBuilder 构建运动指令消息
+        msg = app.ws_manager.message_builder.build_motion_command(
+            joint_angles=joint_angles,
+            joint_names=joint_names
+        )
+        
         if app.ws_manager.send_message(msg):
-            self.report({'INFO'}, "Motion command sent")
+            # 显示发送的角度信息（转换为度数便于查看）
+            angles_deg = [math.degrees(a) for a in joint_angles]
+            angles_str = ", ".join([f"{a:.1f}°" for a in angles_deg])
+            self.report({'INFO'}, f"Motion command sent: [{angles_str}]")
             return {'FINISHED'}
-        self.report({'ERROR'}, "Failed to send")
+        
+        self.report({'ERROR'}, "Failed to send motion command")
         return {'CANCELLED'}
 
 
