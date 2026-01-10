@@ -1,6 +1,8 @@
 # 机器人控制相关操作符
 import bpy
 import math
+import tempfile
+import os
 from bpy.props import FloatVectorProperty
 
 from ..core.app import get_app
@@ -148,3 +150,89 @@ class ROBOT_OT_UnbindAxis(bpy.types.Operator):
         
         self.report({'INFO'}, f"bone: '{bone_name}' unbound")
         return {'FINISHED'}
+
+
+class ROBOT_OT_SendImage(bpy.types.Operator):
+    """发送相机拍摄的图像到服务器"""
+    bl_idname = "robotic_twin.send_image"
+    bl_label = "发送图像"
+    
+    @classmethod
+    def poll(cls, context):
+        app = get_app()
+        # 需要连接且场景中有相机
+        return app.is_connected() and context.scene.camera is not None
+    
+    def execute(self, context):
+        app = get_app()
+        scene = context.scene
+        camera = scene.camera
+        
+        if not camera:
+            self.report({'ERROR'}, "场景中没有相机")
+            return {'CANCELLED'}
+        
+        # 保存当前渲染设置
+        original_filepath = scene.render.filepath
+        original_format = scene.render.image_settings.file_format
+        original_quality = scene.render.image_settings.quality
+        
+        try:
+            # 创建临时文件路径
+            temp_dir = tempfile.gettempdir()
+            temp_filepath = os.path.join(temp_dir, "blender_camera_capture.jpg")
+            
+            # 设置渲染参数
+            scene.render.filepath = temp_filepath
+            scene.render.image_settings.file_format = 'JPEG'
+            scene.render.image_settings.quality = 85
+            
+            # 渲染图像
+            bpy.ops.render.render(write_still=True)
+            
+            # 读取图像数据
+            with open(temp_filepath, 'rb') as f:
+                image_data = f.read()
+            
+            # 获取图像尺寸
+            width = scene.render.resolution_x
+            height = scene.render.resolution_y
+            
+            # 获取相机信息
+            camera_info = {
+                "name": camera.name,
+                "location": list(camera.location),
+                "rotation": list(camera.rotation_euler)
+            }
+            
+            # 构建并发送图像消息
+            msg = app.ws_manager.message_builder.build_image_frame(
+                image_data=image_data,
+                width=width,
+                height=height,
+                camera_info=camera_info
+            )
+            
+            if app.ws_manager.send_message(msg):
+                self.report({'INFO'}, f"图像已发送 ({width}x{height})")
+                return {'FINISHED'}
+            
+            self.report({'ERROR'}, "发送图像失败")
+            return {'CANCELLED'}
+            
+        except Exception as e:
+            self.report({'ERROR'}, f"捕获图像失败: {str(e)}")
+            return {'CANCELLED'}
+            
+        finally:
+            # 恢复原始渲染设置
+            scene.render.filepath = original_filepath
+            scene.render.image_settings.file_format = original_format
+            scene.render.image_settings.quality = original_quality
+            
+            # 清理临时文件
+            if os.path.exists(temp_filepath):
+                try:
+                    os.remove(temp_filepath)
+                except:
+                    pass

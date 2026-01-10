@@ -47,7 +47,7 @@ manually:
 
 - [main.py](main.py): Configures the Blender path, add-on installation path, default add-on, package ignore files, and
   add-on release path, among other settings.
-- [test.py](test.py): A testing tool to run and test add-ons.
+- [run_blender.py](run_blender.py): A script to launch Blender with your addon loaded. Supports hot reloading logic.
 - [create.py](create.py): A tool to create add-ons, allowing you to quickly create an add-on based on the `sample_addon`
   template.
 - [release.py](release.py): A packaging tool that packages add-ons into an installable package.
@@ -110,7 +110,7 @@ addon_prefs.some_property
    including
    watchdog and fake-bpy-module.
 1. Develop your addon in the newly created addon directory.
-1. Run test.py to test your addon in Blender.
+1. Run run_blender.py to test your addon in Blender. It supports hot reloading by default.
 1. Run release.py to package your addon into an installable package. The packaged addon path will appears in the
    terminal when packaged successfully.
 
@@ -214,7 +214,7 @@ test_release_dir = C:/path/to/test/release/dir
 
 [main.py](main.py): 可以配置Blender路径，插件安装路径，当前默认插件，插件发布路径等
 
-[test.py](test.py): 测试工具，可以运行插件的测试
+[run_blender.py](run_blender.py): 启动脚本，用于启动Blender并加载插件，支持开发过程中的热重载
 
 [create.py](create.py): 创建插件的工具，可以根据sample_addon模版快速创建一个插件
 
@@ -274,7 +274,7 @@ addon_prefs.some_property
 1. 在 [main.py](main.py) 中配置您想要创建的插件名称（ACTIVE_ADDON）。
 1. 运行 create.py 在您的 IDE 中创建一个新的插件。第一次运行时需要联网下载依赖库,包括watchdog和fake-bpy-module
 1. 在新创建的插件目录中开发您的插件。
-1. 运行 test.py 在 Blender 中测试您的插件。
+1. 运行 run_blender.py 在 Blender 中测试您的插件。支持热重载。
 1. 运行 release.py 将您的插件打包成可安装的包。成功打包后，终端中将显示打包插件的路径。
 
 ## 框架提供的功能

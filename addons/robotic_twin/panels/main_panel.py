@@ -68,6 +68,12 @@ class RT_PT_RobotControlPanel(BasePanel, bpy.types.Panel):
         row = layout.row()
         row.enabled = app.is_connected()
         row.operator("robotic_twin.send_move", text="发送到服务器")
+        
+        # 发送图像按钮
+        layout.separator()
+        row = layout.row()
+        row.enabled = app.is_connected() and context.scene.camera is not None
+        row.operator("robotic_twin.send_image", text="发送图像", icon='CAMERA_DATA')
 
 
 @reg_order(2)
@@ -96,3 +102,26 @@ class RT_PT_AxisBindingPanel(BasePanel, bpy.types.Panel):
                 box.label(text=f"旋转方向: {bone.get('rotation_axis', 'Z')}")
             else:
                 box.label(text="未绑定", icon='INFO')
+
+
+@reg_order(3)
+class RT_PT_DetectionPanel(BasePanel, bpy.types.Panel):
+    """AI检测面板"""
+    bl_idname = "RT_PT_detection"
+    bl_label = "AI 目标检测"
+    
+    def draw(self, context):
+        layout = self.layout
+        app = get_app()
+        
+        layout.enabled = app.is_connected()
+        
+        box = layout.box()
+        box.label(text="图像检测", icon='VIEW_ZOOM')
+        
+        row = box.row()
+        row.scale_y = 1.2
+        row.operator("robotic_twin.detect_image", text="选择图片并检测", icon='IMAGE_DATA')
+        
+        if not app.is_connected():
+            box.label(text="需要连接服务器", icon='ERROR')

@@ -63,6 +63,28 @@ class MessageBuilder:
         msg = Message.create(MessageType.IMAGE_FRAME, payload, self.client_id, metadata=metadata)
         return msg
     
+    def build_detection_request(self, image_data: bytes, model: str = "yolov8n",
+                                confidence: float = 0.5, classes: List[str] = None) -> Message:
+        """构建检测请求消息"""
+        payload = {
+            "image_source": {
+                "type": "inline",
+                "format": "jpeg",
+                "encoding": "base64",
+                "data": base64.b64encode(image_data).decode('utf-8')
+            },
+            "detection_params": {
+                "model": model,
+                "confidence_threshold": confidence,
+                "classes": classes or []
+            },
+            "output_options": {
+                "include_bbox": True,
+                "include_annotated_image": True
+            }
+        }
+        return Message.create(MessageType.DETECTION_REQUEST, payload, self.client_id)
+    
     # ==================== 运动指令消息 ====================
     
     def build_motion_command(self, joint_angles: List[float], 
