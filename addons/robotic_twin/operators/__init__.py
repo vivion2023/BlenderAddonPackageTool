@@ -7,7 +7,7 @@ from .robot_operators import (
     ROBOT_OT_UnbindAxis,
     ROBOT_OT_SendImage
 )
-from .detection_operators import WS_OT_DetectImage
+from .detection_operators import WS_OT_DetectImage, ROBOT_OT_RealtimeDetection
 
 classes = (
     WS_OT_Connect,
@@ -20,4 +20,5 @@ classes = (
     ROBOT_OT_UnbindAxis,
     ROBOT_OT_SendImage,
     WS_OT_DetectImage,
+    ROBOT_OT_RealtimeDetection,
 )

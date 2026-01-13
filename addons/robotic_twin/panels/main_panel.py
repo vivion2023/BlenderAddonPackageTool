@@ -68,12 +68,6 @@ class RT_PT_RobotControlPanel(BasePanel, bpy.types.Panel):
         row = layout.row()
         row.enabled = app.is_connected()
         row.operator("robotic_twin.send_move", text="发送到服务器")
-        
-        # 发送图像按钮
-        layout.separator()
-        row = layout.row()
-        row.enabled = app.is_connected() and context.scene.camera is not None
-        row.operator("robotic_twin.send_image", text="发送图像", icon='CAMERA_DATA')
 
 
 @reg_order(2)
@@ -106,22 +100,33 @@ class RT_PT_AxisBindingPanel(BasePanel, bpy.types.Panel):
 
 @reg_order(3)
 class RT_PT_DetectionPanel(BasePanel, bpy.types.Panel):
-    """AI检测面板"""
+    """目标检测面板"""
     bl_idname = "RT_PT_detection"
-    bl_label = "AI 目标检测"
+    bl_label = "目标检测"
     
     def draw(self, context):
         layout = self.layout
         app = get_app()
         
-        layout.enabled = app.is_connected()
-        
-        box = layout.box()
-        box.label(text="图像检测", icon='VIEW_ZOOM')
-        
-        row = box.row()
+        # 发送图像按钮
+        row = layout.row()
         row.scale_y = 1.2
-        row.operator("robotic_twin.detect_image", text="选择图片并检测", icon='IMAGE_DATA')
+        row.enabled = app.is_connected() and context.scene.camera is not None
+        row.operator("robotic_twin.send_image", text="发送图像", icon='CAMERA_DATA')
+        
+        # 实时目标检测按钮
+        layout.separator()
+        row = layout.row()
+        row.scale_y = 1.2
+        row.enabled = app.is_connected() and context.scene.camera is not None
+        row.operator("robotic_twin.realtime_detection", text="实时目标检测", icon='PLAY')
         
         if not app.is_connected():
+            layout.separator()
+            box = layout.box()
             box.label(text="需要连接服务器", icon='ERROR')
+        
+        if context.scene.camera is None:
+            layout.separator()
+            box = layout.box()
+            box.label(text="场景中没有相机", icon='ERROR')

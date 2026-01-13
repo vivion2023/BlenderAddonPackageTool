@@ -106,3 +106,21 @@ class WS_OT_DetectImage(bpy.types.Operator):
             return {'CANCELLED'}
             
         return {'FINISHED'}
+
+
+class ROBOT_OT_RealtimeDetection(bpy.types.Operator):
+    """实时目标检测"""
+    bl_idname = "robotic_twin.realtime_detection"
+    bl_label = "实时目标检测"
+    bl_description = "启动实时目标检测"
+    
+    @classmethod
+    def poll(cls, context):
+        app = get_app()
+        # 需要连接且场景中有相机
+        return app.is_connected() and context.scene.camera is not None
+    
+    def execute(self, context):
+        # TODO: 实现实时检测功能
+        self.report({'INFO'}, "实时检测功能待实现")
+        return {'FINISHED'}
