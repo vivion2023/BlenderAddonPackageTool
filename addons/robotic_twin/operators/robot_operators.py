@@ -1,9 +1,16 @@
 # 机器人控制相关操作符
 import bpy
 import math
-import tempfile
-import os
+import numpy as np
+import base64
+from io import BytesIO
 from bpy.props import FloatVectorProperty
+
+try:
+    from PIL import Image
+except ImportError:
+    # Blender 可能使用不同的导入路径
+    Image = None
 
 from ..core.app import get_app
 
@@ -172,31 +179,53 @@ class ROBOT_OT_SendImage(bpy.types.Operator):
             self.report({'ERROR'}, "场景中没有相机")
             return {'CANCELLED'}
         
-        # 保存当前渲染设置
-        original_filepath = scene.render.filepath
-        original_format = scene.render.image_settings.file_format
-        original_quality = scene.render.image_settings.quality
+        # 检查 PIL 是否可用
+        if Image is None:
+            self.report({'ERROR'}, "PIL/Pillow 未安装,无法编码图像")
+            return {'CANCELLED'}
         
         try:
-            # 创建临时文件路径
-            temp_dir = tempfile.gettempdir()
-            temp_filepath = os.path.join(temp_dir, "blender_camera_capture.jpg")
+            # 渲染图像(不写入文件,直接保存到内存)
+            bpy.ops.render.render(write_still=False)
             
-            # 设置渲染参数
-            scene.render.filepath = temp_filepath
-            scene.render.image_settings.file_format = 'JPEG'
-            scene.render.image_settings.quality = 85
-            
-            # 渲染图像
-            bpy.ops.render.render(write_still=True)
-            
-            # 读取图像数据
-            with open(temp_filepath, 'rb') as f:
-                image_data = f.read()
+            # 获取渲染结果
+            render_result = bpy.data.images.get('Render Result')
+            if not render_result:
+                self.report({'ERROR'}, "无法获取渲染结果")
+                return {'CANCELLED'}
             
             # 获取图像尺寸
-            width = scene.render.resolution_x
-            height = scene.render.resolution_y
+            width, height = render_result.size
+            
+            if width == 0 or height == 0:
+                self.report({'ERROR'}, "渲染结果尺寸无效")
+                return {'CANCELLED'}
+            
+            # 高效读取像素数据 (RGBA float array, 0.0-1.0)
+            # 使用 foreach_get 比直接访问 pixels[:] 更快
+            pixel_count = width * height * 4  # RGBA
+            pixels = np.empty(pixel_count, dtype=np.float32)
+            render_result.pixels.foreach_get(pixels)
+            
+            # Reshape 为图像格式 (height, width, 4)
+            pixels = pixels.reshape((height, width, 4))
+            
+            # 翻转 Y 轴 (Blender 的坐标系统是从下到上)
+            pixels = np.flipud(pixels)
+            
+            # 转换为 uint8 (0-255)
+            pixels_uint8 = (pixels * 255).astype(np.uint8)
+            
+            # 转换为 RGB (去掉 Alpha 通道)
+            pixels_rgb = pixels_uint8[:, :, :3]
+            
+            # 使用 PIL 在内存中编码为 JPEG
+            pil_image = Image.fromarray(pixels_rgb, 'RGB')
+            buffer = BytesIO()
+            pil_image.save(buffer, format='JPEG', quality=85, optimize=True)
+            
+            # 获取图像字节数据
+            image_data = buffer.getvalue()
             
             # 获取相机信息
             camera_info = {
@@ -214,7 +243,9 @@ class ROBOT_OT_SendImage(bpy.types.Operator):
             )
             
             if app.ws_manager.send_message(msg):
-                self.report({'INFO'}, f"图像已发送 ({width}x{height})")
+                # 计算图像大小 (KB)
+                size_kb = len(image_data) / 1024
+                self.report({'INFO'}, f"图像已发送 ({width}x{height}, {size_kb:.1f}KB)")
                 return {'FINISHED'}
             
             self.report({'ERROR'}, "发送图像失败")
@@ -222,17 +253,7 @@ class ROBOT_OT_SendImage(bpy.types.Operator):
             
         except Exception as e:
             self.report({'ERROR'}, f"捕获图像失败: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return {'CANCELLED'}
-            
-        finally:
-            # 恢复原始渲染设置
-            scene.render.filepath = original_filepath
-            scene.render.image_settings.file_format = original_format
-            scene.render.image_settings.quality = original_quality
-            
-            # 清理临时文件
-            if os.path.exists(temp_filepath):
-                try:
-                    os.remove(temp_filepath)
-                except:
-                    pass
+
