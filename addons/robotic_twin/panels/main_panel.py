@@ -12,6 +12,30 @@ class BasePanel:
     bl_category = "RoboticTwin"
 
 
+CLASS_LABELS = {
+    "bolts": "bolts (ID: 0)",
+    "cross": "cross (ID: 1)",
+    "gear": "gear (ID: 2)",
+    "nuts": "nuts (ID: 3)",
+    "pinion": "pinion (ID: 4)",
+}
+
+
+@reg_order(0)
+class RT_MT_ClassSelectMenu(bpy.types.Menu):
+    bl_idname = "RT_MT_class_select_menu"
+    bl_label = "检测类别"
+
+    def draw(self, context):
+        layout = self.layout
+        scene = context.scene
+        for class_key in CLASS_LABELS.keys():
+            layout.prop_enum(scene, "rt_class_flags", class_key)
+        layout.separator()
+        layout.operator("robotic_twin.classes_select_all", text="全选", icon='CHECKMARK')
+        layout.operator("robotic_twin.classes_clear", text="清空", icon='X')
+
+
 @reg_order(0)
 class RT_PT_ConnectionPanel(BasePanel, bpy.types.Panel):
     """连接面板"""
@@ -114,9 +138,19 @@ class RT_PT_DetectionPanel(BasePanel, bpy.types.Panel):
         box.prop(scene, "rt_model_type", text="Model")
         box.prop(scene, "rt_confidence", text="Confidence")
         box.prop(scene, "rt_iou", text="IOU")
-        box.prop(scene, "rt_classes", text="Classes")
+        selected = sorted(list(getattr(scene, "rt_class_flags", set()) or set()))
+        if not selected:
+            class_summary = "全部类别"
+        else:
+            labels = [CLASS_LABELS.get(k, k) for k in selected]
+            class_summary = labels[0] if len(labels) == 1 else f"{labels[0]} + {len(labels) - 1}"
+        box.label(text=f"Classes: {class_summary}", icon='OUTLINER_DATA_POINTCLOUD')
+        box.prop_menu_enum(scene, "rt_class_flags", text="选择类别", icon='DOWNARROW_HLT')
+        row = box.row(align=True)
+        row.operator("robotic_twin.classes_select_all", text="全选")
+        row.operator("robotic_twin.classes_clear", text="清空")
         box.prop(scene, "rt_debug_payload", text="发送前打印 payload")
-        box.label(text="Classes 留空=检测全部类别", icon='INFO')
+        box.label(text="Classes 不选=检测全部类别", icon='INFO')
         
         # 发送图像按钮
         row = layout.row()

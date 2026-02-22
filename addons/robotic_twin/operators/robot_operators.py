@@ -9,6 +9,9 @@ from bpy.props import FloatVectorProperty
 from ..core.app import get_app
 
 
+CLASS_OPTIONS = ("bolts", "cross", "gear", "nuts", "pinion")
+
+
 class ROBOT_OT_SetJoints(bpy.types.Operator):
     """设置机器人关节角度"""
     bl_idname = "robotic_twin.set_joints"
@@ -153,6 +156,28 @@ class ROBOT_OT_UnbindAxis(bpy.types.Operator):
         return {'FINISHED'}
 
 
+class ROBOT_OT_ClassesSelectAll(bpy.types.Operator):
+    """全选检测类别"""
+    bl_idname = "robotic_twin.classes_select_all"
+    bl_label = "全选类别"
+
+    def execute(self, context):
+        context.scene.rt_class_flags = set(CLASS_OPTIONS)
+        self.report({'INFO'}, "已全选检测类别")
+        return {'FINISHED'}
+
+
+class ROBOT_OT_ClassesClear(bpy.types.Operator):
+    """清空检测类别（表示检测全部类别）"""
+    bl_idname = "robotic_twin.classes_clear"
+    bl_label = "清空类别"
+
+    def execute(self, context):
+        context.scene.rt_class_flags = set()
+        self.report({'INFO'}, "已清空检测类别（将检测全部类别）")
+        return {'FINISHED'}
+
+
 class ROBOT_OT_SendImage(bpy.types.Operator):
     """发送相机拍摄的图像到服务器"""
     bl_idname = "robotic_twin.send_image"
@@ -172,12 +197,9 @@ class ROBOT_OT_SendImage(bpy.types.Operator):
         model_type = (getattr(scene, "rt_model_type", "yolov8") or "yolov8").strip()
         confidence = float(getattr(scene, "rt_confidence", 0.5))
         iou = float(getattr(scene, "rt_iou", 0.45))
-        classes_text = (getattr(scene, "rt_classes", "") or "").strip()
         debug_payload = bool(getattr(scene, "rt_debug_payload", False))
-        classes = None
-        if classes_text:
-            parsed = [item.strip() for item in classes_text.split(",") if item.strip()]
-            classes = parsed or None
+        selected_classes = getattr(scene, "rt_class_flags", set()) or set()
+        classes = sorted(list(selected_classes)) if selected_classes else None
         
         if not camera:
             self.report({'ERROR'}, "场景中没有相机")

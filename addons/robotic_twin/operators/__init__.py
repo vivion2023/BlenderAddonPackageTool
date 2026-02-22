@@ -5,6 +5,8 @@ from .robot_operators import (
     ROBOT_OT_SendMoveCommand,
     ROBOT_OT_BindAxis,
     ROBOT_OT_UnbindAxis,
+    ROBOT_OT_ClassesSelectAll,
+    ROBOT_OT_ClassesClear,
     ROBOT_OT_SendImage
 )
 from .detection_operators import WS_OT_DetectImage, ROBOT_OT_RealtimeDetection
@@ -18,6 +20,8 @@ classes = (
     ROBOT_OT_SendMoveCommand,
     ROBOT_OT_BindAxis,
     ROBOT_OT_UnbindAxis,
+    ROBOT_OT_ClassesSelectAll,
+    ROBOT_OT_ClassesClear,
     ROBOT_OT_SendImage,
     WS_OT_DetectImage,
     ROBOT_OT_RealtimeDetection,

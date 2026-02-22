@@ -65,9 +65,13 @@ def register_axis_properties():
 
 
 def register_detection_properties():
-    bpy.types.Scene.rt_model_type = bpy.props.StringProperty(
+    bpy.types.Scene.rt_model_type = bpy.props.EnumProperty(
         name="模型类型",
-        description="检测模型类型，例如 yolov8 或 simpleSample",
+        description="检测模型类型",
+        items=[
+            ("yolov8", "YOLOv8", "YOLOv8 通用检测模型"),
+            ("simpleSample", "小样本工业零件", "小样本工业零件检测模型"),
+        ],
         default="simpleSample",
     )
     bpy.types.Scene.rt_confidence = bpy.props.FloatProperty(
@@ -84,10 +88,18 @@ def register_detection_properties():
         min=0.0,
         max=1.0,
     )
-    bpy.types.Scene.rt_classes = bpy.props.StringProperty(
-        name="类别",
-        description="逗号分隔类别；留空表示检测全部类别",
-        default="",
+    bpy.types.Scene.rt_class_flags = bpy.props.EnumProperty(
+        name="检测类别",
+        description="检测类别（多选）；留空表示检测全部类别",
+        items=[
+            ("bolts", "bolts (ID: 0)", "bolt class", 'NONE', 1 << 0),
+            ("cross", "cross (ID: 1)", "cross class", 'NONE', 1 << 1),
+            ("gear", "gear (ID: 2)", "gear class", 'NONE', 1 << 2),
+            ("nuts", "nuts (ID: 3)", "nuts class", 'NONE', 1 << 3),
+            ("pinion", "pinion (ID: 4)", "pinion class", 'NONE', 1 << 4),
+        ],
+        options={'ENUM_FLAG'},
+        default=set(),
     )
     bpy.types.Scene.rt_debug_payload = bpy.props.BoolProperty(
         name="发送前打印 payload",
@@ -145,7 +157,7 @@ def unregister():
         "rt_model_type",
         "rt_confidence",
         "rt_iou",
-        "rt_classes",
+        "rt_class_flags",
         "rt_debug_payload",
     ]:
         if hasattr(bpy.types.Scene, prop):
