@@ -94,8 +94,9 @@ class MessageBuilder:
             "model_type": model_type,
             "confidence": confidence,
             "iou": iou,
-            "classes": classes or [],
         }
+        if classes:
+            payload["classes"] = classes
         return self.build_message(MessageType.IMAGE_FRAME.value, payload)
     
     def build_detection_request(
@@ -110,6 +111,14 @@ class MessageBuilder:
         image_id: Optional[str] = None,
     ) -> Message:
         """构建检测请求消息"""
+        detection_params = {
+            "model": model,
+            "confidence_threshold": confidence,
+            "iou_threshold": iou,
+        }
+        if classes:
+            detection_params["classes"] = classes
+
         payload = {
             "image_source": {
                 "type": "inline",
@@ -120,12 +129,7 @@ class MessageBuilder:
                 "width": width,
                 "height": height,
             },
-            "detection_params": {
-                "model": model,
-                "confidence_threshold": confidence,
-                "iou_threshold": iou,
-                "classes": classes or []
-            },
+            "detection_params": detection_params,
         }
         return self.build_message(MessageType.DETECTION_REQUEST.value, payload)
     

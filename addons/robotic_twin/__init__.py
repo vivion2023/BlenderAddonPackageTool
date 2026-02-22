@@ -63,9 +63,42 @@ def register_axis_properties():
         unit='ROTATION'
     )
 
+
+def register_detection_properties():
+    bpy.types.Scene.rt_model_type = bpy.props.StringProperty(
+        name="模型类型",
+        description="检测模型类型，例如 yolov8 或 simpleSample",
+        default="simpleSample",
+    )
+    bpy.types.Scene.rt_confidence = bpy.props.FloatProperty(
+        name="置信度",
+        description="检测置信度阈值",
+        default=0.5,
+        min=0.0,
+        max=1.0,
+    )
+    bpy.types.Scene.rt_iou = bpy.props.FloatProperty(
+        name="IOU",
+        description="检测 IOU 阈值",
+        default=0.45,
+        min=0.0,
+        max=1.0,
+    )
+    bpy.types.Scene.rt_classes = bpy.props.StringProperty(
+        name="类别",
+        description="逗号分隔类别；留空表示检测全部类别",
+        default="",
+    )
+    bpy.types.Scene.rt_debug_payload = bpy.props.BoolProperty(
+        name="发送前打印 payload",
+        description="发送图像前在控制台打印 payload（不含 data）",
+        default=False,
+    )
+
 def register():
     # Register axis properties
     register_axis_properties()
+    register_detection_properties()
 
     # Register classes
     auto_load.init()
@@ -105,7 +138,16 @@ def unregister():
         pass  # 如果已经取消注册了就忽略错误
     
     # Remove properties
-    for prop in ["axis_selection", "axis_values", "rotation_axis"]:
+    for prop in [
+        "axis_selection",
+        "axis_values",
+        "rotation_axis",
+        "rt_model_type",
+        "rt_confidence",
+        "rt_iou",
+        "rt_classes",
+        "rt_debug_payload",
+    ]:
         if hasattr(bpy.types.Scene, prop):
             delattr(bpy.types.Scene, prop)
 

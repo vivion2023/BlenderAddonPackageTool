@@ -3,6 +3,7 @@ import bpy
 import math
 import os
 import tempfile
+import json
 from bpy.props import FloatVectorProperty
 
 from ..core.app import get_app
@@ -156,11 +157,6 @@ class ROBOT_OT_SendImage(bpy.types.Operator):
     """发送相机拍摄的图像到服务器"""
     bl_idname = "robotic_twin.send_image"
     bl_label = "发送图像"
-
-    _MODEL_TYPE = "yolov8"
-    _CONFIDENCE = 0.5
-    _IOU = 0.45
-    _CLASSES = []
     
     @classmethod
     def poll(cls, context):
@@ -172,6 +168,16 @@ class ROBOT_OT_SendImage(bpy.types.Operator):
         app = get_app()
         scene = context.scene
         camera = scene.camera
+
+        model_type = (getattr(scene, "rt_model_type", "yolov8") or "yolov8").strip()
+        confidence = float(getattr(scene, "rt_confidence", 0.5))
+        iou = float(getattr(scene, "rt_iou", 0.45))
+        classes_text = (getattr(scene, "rt_classes", "") or "").strip()
+        debug_payload = bool(getattr(scene, "rt_debug_payload", False))
+        classes = None
+        if classes_text:
+            parsed = [item.strip() for item in classes_text.split(",") if item.strip()]
+            classes = parsed or None
         
         if not camera:
             self.report({'ERROR'}, "场景中没有相机")
@@ -220,11 +226,19 @@ class ROBOT_OT_SendImage(bpy.types.Operator):
                 image_data=image_data,
                 width=width,
                 height=height,
-                model_type=self._MODEL_TYPE,
-                confidence=self._CONFIDENCE,
-                iou=self._IOU,
-                classes=self._CLASSES,
+                model_type=model_type,
+                confidence=confidence,
+                iou=iou,
+                classes=classes,
             )
+
+            if debug_payload:
+                msg_dict = msg.to_dict()
+                payload_preview = dict(msg_dict.get("payload", {}))
+                if "data" in payload_preview:
+                    del payload_preview["data"]
+                print("[SendImage] payload preview:")
+                print(json.dumps(payload_preview, ensure_ascii=False, indent=2))
             
             if app.ws_manager.send_message(msg):
                 # 计算图像大小 (KB)

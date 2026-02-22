@@ -107,6 +107,16 @@ class RT_PT_DetectionPanel(BasePanel, bpy.types.Panel):
     def draw(self, context):
         layout = self.layout
         app = get_app()
+        scene = context.scene
+
+        box = layout.box()
+        box.label(text="检测参数", icon='PREFERENCES')
+        box.prop(scene, "rt_model_type", text="Model")
+        box.prop(scene, "rt_confidence", text="Confidence")
+        box.prop(scene, "rt_iou", text="IOU")
+        box.prop(scene, "rt_classes", text="Classes")
+        box.prop(scene, "rt_debug_payload", text="发送前打印 payload")
+        box.label(text="Classes 留空=检测全部类别", icon='INFO')
         
         # 发送图像按钮
         row = layout.row()
