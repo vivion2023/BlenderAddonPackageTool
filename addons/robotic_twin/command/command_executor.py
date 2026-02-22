@@ -99,20 +99,34 @@ class CommandExecutor:
             for item in sorted(sequence, key=lambda x: x.get("step", 0)):
                 action = item.get("action", "")
                 name = item.get("name", "")
-                pose = item.get("pose", {})
-                print(f"[GraspPlan] step={item.get('step')} action={action} name={name} pose={pose}")
+                step = item.get("step")
+                joint_angles = item.get("joint_angles")
+
+                # 优先使用六轴角执行（服务端下发 joint_angles 时无需再看 pose）
+                if isinstance(joint_angles, list) and len(joint_angles) > 0:
+                    print(
+                        f"[GraspPlan] step={step} action=move_joint name={name} "
+                        f"joint_angles={joint_angles}"
+                    )
+                    result = self._move_joint(command_id, {"joint_angles": joint_angles})
+                    if not result.success:
+                        return result
+                    continue
 
                 if action == "init_bones":
                     result = self._move_joint(command_id, {"joint_angles": [0.0] * len(self._joint_names)})
                     if not result.success:
                         return result
-                elif action == "move_cartesian":
-                    # 当前先联调转发链路，保留动作占位，后续可接入 IK/轨迹执行
-                    print(f"[GraspPlan] move_cartesian placeholder: {pose}")
+                elif action in {"move_joint", "move_cartesian"}:
+                    # 没有 joint_angles 的运动步无法直接驱动六轴，跳过并告警
+                    print(
+                        f"[GraspPlan] step={step} action={action} name={name} "
+                        "missing joint_angles, skipped"
+                    )
                 elif action in {"gripper_close", "gripper_open"}:
-                    print(f"[GraspPlan] gripper action placeholder: {action}")
+                    print(f"[GraspPlan] step={step} action={action} name={name}")
                 else:
-                    print(f"[GraspPlan] unsupported action placeholder: {action}")
+                    print(f"[GraspPlan] step={step} unsupported action={action} name={name}")
         finally:
             self._current_status = OperationalStatus.IDLE
 
