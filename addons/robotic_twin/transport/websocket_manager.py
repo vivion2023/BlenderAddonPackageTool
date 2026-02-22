@@ -2,7 +2,7 @@
 import json
 import threading
 import time
-import uuid
+import queue
 import websocket
 from typing import Optional, Callable, Dict, Any
 
@@ -15,23 +15,28 @@ from ..protocol.message_router import MessageRouter
 class WebSocketManager:
     """WebSocket 连接管理器"""
     
-    CAPABILITIES = ["motion_execute", "image_capture", "status_report"]
+    CAPABILITIES = ["image_capture", "motion_execute"]
     
     def __init__(self):
         self.ws: Optional[websocket.WebSocketApp] = None
         self.thread: Optional[threading.Thread] = None
         self.connected = False
         
-        self.ip_address = "localhost"
+        self.ip_address = "127.0.0.1"
         self.port = 5001
         
-        self.client_id = f"blender_{uuid.uuid4().hex[:8]}"
+        self.client_id = "blender_001"
         self.session_id: Optional[str] = None
         
         self.heartbeat_interval = 30
         self.heartbeat_sequence = 0
         self._heartbeat_timer: Optional[threading.Timer] = None
         self._heartbeat_enabled = True
+
+        # WebSocket 回调线程只做入队，Blender 主线程通过 timer 处理消息，避免跨线程访问 bpy
+        self._incoming_queue: queue.Queue = queue.Queue()
+        self._timer_registered = False
+        self._timer_interval = 0.05
         
         self.message_builder = MessageBuilder(self.client_id)
         self.message_parser = MessageParser()
@@ -60,6 +65,8 @@ class WebSocketManager:
         """建立 WebSocket 连接"""
         if self.connected:
             return
+
+        self._ensure_message_timer()
         
         url = f"ws://{self.ip_address}:{self.port}"
         print(f"Connecting to {url}...")
@@ -108,6 +115,7 @@ class WebSocketManager:
         self.session_id = None
         self._registered = False
         self.heartbeat_sequence = 0
+        self._clear_incoming_queue()
     
     def send_message(self, message: Message) -> bool:
         """发送 Message 对象"""
@@ -160,9 +168,8 @@ class WebSocketManager:
             
             if msg_type == MessageType.HEARTBEAT_ACK.value:
                 return
-            
-            if not self.message_router.route(data):
-                print(f"Message not handled: {msg_type}")
+
+            self._incoming_queue.put(data)
             
         except json.JSONDecodeError as e:
             print(f"Message parse failed: {e}")
@@ -181,27 +188,14 @@ class WebSocketManager:
         self._stop_heartbeat()
         self.connected = False
         self._registered = False
+        self._clear_incoming_queue()
         
         if self._on_disconnected_callback:
             self._on_disconnected_callback()
     
     def _send_register(self):
         """发送客户端注册消息"""
-        try:
-            import bpy
-            blender_version = bpy.app.version_string
-        except:
-            blender_version = "unknown"
-        
-        device_info = {
-            "name": "Blender Virtual Robot",
-            "blender_version": blender_version
-        }
-        
-        msg = self.message_builder.build_register(
-            capabilities=self.CAPABILITIES,
-            device_info=device_info
-        )
+        msg = self.message_builder.build_register(capabilities=self.CAPABILITIES)
         self.send_message(msg)
         print(f"Register message sent, client_id: {self.client_id}")
     
@@ -252,6 +246,43 @@ class WebSocketManager:
         if self._heartbeat_timer:
             self._heartbeat_timer.cancel()
             self._heartbeat_timer = None
+
+    def _ensure_message_timer(self):
+        """确保主线程消息处理 timer 已注册。"""
+        if self._timer_registered:
+            return
+        try:
+            import bpy
+            bpy.app.timers.register(self._process_incoming_messages, first_interval=self._timer_interval)
+            self._timer_registered = True
+        except Exception as e:
+            print(f"Failed to register message timer: {e}")
+
+    def _process_incoming_messages(self):
+        """在 Blender 主线程分发下行消息。"""
+        while not self._incoming_queue.empty():
+            try:
+                data = self._incoming_queue.get_nowait()
+            except queue.Empty:
+                break
+
+            msg_type = data.get("type")
+            if not self.message_router.route(data):
+                print(f"Message not handled: {msg_type}")
+
+        if self.connected or not self._incoming_queue.empty():
+            return self._timer_interval
+
+        self._timer_registered = False
+        return None
+
+    def _clear_incoming_queue(self):
+        """清理消息队列，避免断线后残留数据。"""
+        while not self._incoming_queue.empty():
+            try:
+                self._incoming_queue.get_nowait()
+            except queue.Empty:
+                break
     
     def is_connected(self) -> bool:
         return self.connected

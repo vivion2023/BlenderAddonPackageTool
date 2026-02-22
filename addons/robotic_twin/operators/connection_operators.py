@@ -11,7 +11,7 @@ class WS_OT_Connect(bpy.types.Operator):
     bl_label = "连接 WebSocket"
     bl_description = "连接到视觉引导系统服务器"
     
-    ip_address: StringProperty(name="服务器地址", default="localhost")
+    ip_address: StringProperty(name="服务器地址", default="127.0.0.1")
     port: IntProperty(name="端口", default=5001, min=1, max=65535)
     
     @classmethod

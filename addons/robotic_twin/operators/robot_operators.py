@@ -1,16 +1,9 @@
 # 机器人控制相关操作符
 import bpy
 import math
-import numpy as np
-import base64
-from io import BytesIO
+import os
+import tempfile
 from bpy.props import FloatVectorProperty
-
-try:
-    from PIL import Image
-except ImportError:
-    # Blender 可能使用不同的导入路径
-    Image = None
 
 from ..core.app import get_app
 
@@ -163,6 +156,11 @@ class ROBOT_OT_SendImage(bpy.types.Operator):
     """发送相机拍摄的图像到服务器"""
     bl_idname = "robotic_twin.send_image"
     bl_label = "发送图像"
+
+    _MODEL_TYPE = "yolov8"
+    _CONFIDENCE = 0.5
+    _IOU = 0.45
+    _CLASSES = []
     
     @classmethod
     def poll(cls, context):
@@ -178,74 +176,60 @@ class ROBOT_OT_SendImage(bpy.types.Operator):
         if not camera:
             self.report({'ERROR'}, "场景中没有相机")
             return {'CANCELLED'}
-        
-        # 检查 PIL 是否可用
-        if Image is None:
-            self.report({'ERROR'}, "PIL/Pillow 未安装,无法编码图像")
-            return {'CANCELLED'}
-        
+
         try:
-            # 渲染图像(不写入文件,直接保存到内存)
-            bpy.ops.render.render(write_still=False)
-            
-            # 获取渲染结果
-            render_result = bpy.data.images.get('Render Result')
-            if not render_result:
-                self.report({'ERROR'}, "无法获取渲染结果")
+            render = scene.render
+            width = int(render.resolution_x * render.resolution_percentage / 100)
+            height = int(render.resolution_y * render.resolution_percentage / 100)
+            if width <= 0 or height <= 0:
+                self.report({'ERROR'}, "渲染分辨率无效")
                 return {'CANCELLED'}
-            
-            # 获取图像尺寸
-            width, height = render_result.size
-            
-            if width == 0 or height == 0:
-                self.report({'ERROR'}, "渲染结果尺寸无效")
-                return {'CANCELLED'}
-            
-            # 高效读取像素数据 (RGBA float array, 0.0-1.0)
-            # 使用 foreach_get 比直接访问 pixels[:] 更快
-            pixel_count = width * height * 4  # RGBA
-            pixels = np.empty(pixel_count, dtype=np.float32)
-            render_result.pixels.foreach_get(pixels)
-            
-            # Reshape 为图像格式 (height, width, 4)
-            pixels = pixels.reshape((height, width, 4))
-            
-            # 翻转 Y 轴 (Blender 的坐标系统是从下到上)
-            pixels = np.flipud(pixels)
-            
-            # 转换为 uint8 (0-255)
-            pixels_uint8 = (pixels * 255).astype(np.uint8)
-            
-            # 转换为 RGB (去掉 Alpha 通道)
-            pixels_rgb = pixels_uint8[:, :, :3]
-            
-            # 使用 PIL 在内存中编码为 JPEG
-            pil_image = Image.fromarray(pixels_rgb, 'RGB')
-            buffer = BytesIO()
-            pil_image.save(buffer, format='JPEG', quality=85, optimize=True)
-            
-            # 获取图像字节数据
-            image_data = buffer.getvalue()
-            
-            # 获取相机信息
-            camera_info = {
-                "name": camera.name,
-                "location": list(camera.location),
-                "rotation": list(camera.rotation_euler)
-            }
-            
-            # 构建并发送图像消息
+
+            old_path = render.filepath
+            old_format = render.image_settings.file_format
+            old_quality = getattr(render.image_settings, "quality", 90)
+
+            tmp_file = tempfile.NamedTemporaryFile(prefix="rt_frame_", suffix=".jpg", delete=False)
+            tmp_path = tmp_file.name
+            tmp_file.close()
+
+            try:
+                render.filepath = tmp_path
+                render.image_settings.file_format = 'JPEG'
+                render.image_settings.quality = 85
+                bpy.ops.render.render(write_still=True)
+
+                if not os.path.exists(tmp_path) or os.path.getsize(tmp_path) == 0:
+                    self.report({'ERROR'}, "渲染输出为空")
+                    return {'CANCELLED'}
+
+                with open(tmp_path, "rb") as f:
+                    image_data = f.read()
+            finally:
+                render.filepath = old_path
+                render.image_settings.file_format = old_format
+                render.image_settings.quality = old_quality
+                try:
+                    if os.path.exists(tmp_path):
+                        os.remove(tmp_path)
+                except Exception:
+                    pass
+
+            # 构建并发送 image_frame（服务端按该消息触发检测并回 model_command）
             msg = app.ws_manager.message_builder.build_image_frame(
                 image_data=image_data,
                 width=width,
                 height=height,
-                camera_info=camera_info
+                model_type=self._MODEL_TYPE,
+                confidence=self._CONFIDENCE,
+                iou=self._IOU,
+                classes=self._CLASSES,
             )
             
             if app.ws_manager.send_message(msg):
                 # 计算图像大小 (KB)
                 size_kb = len(image_data) / 1024
-                self.report({'INFO'}, f"图像已发送 ({width}x{height}, {size_kb:.1f}KB)")
+                self.report({'INFO'}, f"图像已发送并触发检测 ({width}x{height}, {size_kb:.1f}KB)")
                 return {'FINISHED'}
             
             self.report({'ERROR'}, "发送图像失败")

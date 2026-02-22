@@ -36,7 +36,9 @@ class CommandExecutor:
         
         print(f"Executing command: type={msg_type}, command_id={command_id}")
         
-        if msg_type == "motion_command":
+        if msg_type == "model_command":
+            return self.execute_model_command(message)
+        elif msg_type == "motion_command":
             return self._execute_motion(command_id, payload)
         elif msg_type == "grasp_command":
             return self._execute_grasp(command_id, payload)
@@ -49,6 +51,78 @@ class CommandExecutor:
                 message=f"Unsupported command type: {msg_type}",
                 status=ExecutionStatus.FAILED
             )
+
+    def execute_model_command(self, message: Dict[str, Any]) -> ExecutionResult:
+        """执行下行 model_command（当前重点）。"""
+        payload = message.get("payload", {})
+        command = payload.get("command", "")
+        command_id = self._resolve_model_command_id(message)
+
+        if command == "idle":
+            self._current_status = OperationalStatus.IDLE
+            return ExecutionResult(
+                True,
+                command_id,
+                "Switched to idle",
+                ExecutionStatus.COMPLETED,
+                {"operational_status": self._current_status.value},
+            )
+
+        if command == "init_bones":
+            return self._move_joint(command_id, {"joint_angles": [0.0] * len(self._joint_names)})
+
+        if command == "execute_grasp_plan":
+            return self._execute_grasp_plan(command_id, payload)
+
+        return ExecutionResult(
+            False,
+            command_id,
+            f"Unsupported model command: {command}",
+            ExecutionStatus.FAILED,
+        )
+
+    def _resolve_model_command_id(self, message: Dict[str, Any]) -> str:
+        payload = message.get("payload", {})
+        return (
+            payload.get("plan_id")
+            or payload.get("command_id")
+            or message.get("message_id")
+            or "unknown"
+        )
+
+    def _execute_grasp_plan(self, command_id: str, payload: Dict[str, Any]) -> ExecutionResult:
+        """按 sequence.action 分派执行。"""
+        sequence = payload.get("sequence", []) or []
+        self._current_status = OperationalStatus.EXECUTING
+
+        try:
+            for item in sorted(sequence, key=lambda x: x.get("step", 0)):
+                action = item.get("action", "")
+                name = item.get("name", "")
+                pose = item.get("pose", {})
+                print(f"[GraspPlan] step={item.get('step')} action={action} name={name} pose={pose}")
+
+                if action == "init_bones":
+                    result = self._move_joint(command_id, {"joint_angles": [0.0] * len(self._joint_names)})
+                    if not result.success:
+                        return result
+                elif action == "move_cartesian":
+                    # 当前先联调转发链路，保留动作占位，后续可接入 IK/轨迹执行
+                    print(f"[GraspPlan] move_cartesian placeholder: {pose}")
+                elif action in {"gripper_close", "gripper_open"}:
+                    print(f"[GraspPlan] gripper action placeholder: {action}")
+                else:
+                    print(f"[GraspPlan] unsupported action placeholder: {action}")
+        finally:
+            self._current_status = OperationalStatus.IDLE
+
+        return ExecutionResult(
+            True,
+            command_id,
+            f"execute_grasp_plan handled, steps={len(sequence)}",
+            ExecutionStatus.COMPLETED,
+            {"joint_positions": self.get_joint_positions()},
+        )
     
     def _execute_motion(self, command_id: str, payload: Dict) -> ExecutionResult:
         """执行运动指令"""

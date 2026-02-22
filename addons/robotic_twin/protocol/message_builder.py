@@ -1,11 +1,18 @@
-# 消息构建器 - 负责构建符合协议的消息
+"""消息构建器 - 按统一外层协议构建消息。"""
 import uuid
 import base64
+import time
 from typing import Dict, Any, List, Optional
 
 from .message import (
-    Message, MessageType, Target, Metadata, ClientType,
-    CommandAckStatus, ExecutionStatus, OperationalStatus
+    Message,
+    MessageType,
+    Target,
+    Metadata,
+    Sender,
+    CommandAckStatus,
+    ExecutionStatus,
+    OperationalStatus,
 )
 
 
@@ -14,22 +21,41 @@ class MessageBuilder:
     
     def __init__(self, client_id: str):
         self.client_id = client_id
-        self.client_type = ClientType.BLENDER.value
+        self.client_type = "blender"
+
+    def build_message(
+        self,
+        msg_type: str,
+        payload: Dict[str, Any],
+        target: Optional[Dict[str, Any]] = None,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Message:
+        """统一封装消息外层，自动补 message_id/timestamp/sender。"""
+        target_obj = Target.from_dict(target) if target else None
+        metadata_obj = Metadata.from_dict(metadata) if metadata else None
+        return Message(
+            message_id=str(uuid.uuid4()),
+            type=msg_type,
+            sender=Sender(client_id=self.client_id, client_type=self.client_type),
+            timestamp=int(time.time() * 1000),
+            payload=payload or {},
+            target=target_obj,
+            metadata=metadata_obj,
+        )
     
     # ==================== 系统消息 ====================
     
-    def build_register(self, capabilities: List[str], device_info: Dict[str, Any]) -> Message:
+    def build_register(self, capabilities: Optional[List[str]] = None) -> Message:
         """构建客户端注册消息"""
         payload = {
-            "capabilities": capabilities,
-            "device_info": device_info
+            "capabilities": capabilities or ["image_capture", "motion_execute"]
         }
-        return Message.create(MessageType.REGISTER, payload, self.client_id)
+        return self.build_message(MessageType.REGISTER.value, payload)
     
     def build_heartbeat(self, sequence: int) -> Message:
         """构建心跳消息"""
         payload = {"sequence": sequence}
-        return Message.create(MessageType.HEARTBEAT, payload, self.client_id)
+        return self.build_message(MessageType.HEARTBEAT.value, payload)
     
     def build_error(self, error_code: str, error_type: str, 
                     message: str, details: Dict = None,
@@ -41,49 +67,67 @@ class MessageBuilder:
             "message": message,
             "details": details or {}
         }
-        metadata = Metadata(request_id=request_id) if request_id else None
-        return Message.create(MessageType.ERROR, payload, self.client_id, metadata=metadata)
+        metadata = {"request_id": request_id} if request_id else None
+        return self.build_message(MessageType.ERROR.value, payload, metadata=metadata)
     
     # ==================== 图像消息 ====================
     
-    def build_image_frame(self, image_data: bytes, width: int, height: int,
-                          camera_info: Optional[Dict] = None,
-                          frame_number: int = 0) -> Message:
+    def build_image_frame(
+        self,
+        image_data: bytes,
+        width: int,
+        height: int,
+        model_type: str = "yolov8",
+        confidence: float = 0.5,
+        iou: float = 0.45,
+        classes: Optional[List[str]] = None,
+        image_id: Optional[str] = None,
+    ) -> Message:
         """构建图像帧消息"""
         payload = {
-            "image_id": str(uuid.uuid4()),
+            "image_id": image_id or str(uuid.uuid4()),
             "format": "jpeg",
             "encoding": "base64",
             "width": width,
             "height": height,
             "data": base64.b64encode(image_data).decode('utf-8'),
-            "camera_info": camera_info or {}
+            "model_type": model_type,
+            "confidence": confidence,
+            "iou": iou,
+            "classes": classes or [],
         }
-        metadata = Metadata()
-        msg = Message.create(MessageType.IMAGE_FRAME, payload, self.client_id, metadata=metadata)
-        return msg
+        return self.build_message(MessageType.IMAGE_FRAME.value, payload)
     
-    def build_detection_request(self, image_data: bytes, model: str = "yolov8n",
-                                confidence: float = 0.5, classes: List[str] = None) -> Message:
+    def build_detection_request(
+        self,
+        image_data: bytes,
+        width: int = 0,
+        height: int = 0,
+        model: str = "yolov8",
+        confidence: float = 0.5,
+        iou: float = 0.45,
+        classes: Optional[List[str]] = None,
+        image_id: Optional[str] = None,
+    ) -> Message:
         """构建检测请求消息"""
         payload = {
             "image_source": {
                 "type": "inline",
                 "format": "jpeg",
                 "encoding": "base64",
-                "data": base64.b64encode(image_data).decode('utf-8')
+                "data": base64.b64encode(image_data).decode('utf-8'),
+                "image_id": image_id or str(uuid.uuid4()),
+                "width": width,
+                "height": height,
             },
             "detection_params": {
                 "model": model,
                 "confidence_threshold": confidence,
+                "iou_threshold": iou,
                 "classes": classes or []
             },
-            "output_options": {
-                "include_bbox": True,
-                "include_annotated_image": True
-            }
         }
-        return Message.create(MessageType.DETECTION_REQUEST, payload, self.client_id)
+        return self.build_message(MessageType.DETECTION_REQUEST.value, payload)
     
     # ==================== 运动指令消息 ====================
     
@@ -112,10 +156,9 @@ class MessageBuilder:
                 "max_velocity": 1.0
             }
         }
-        metadata = Metadata(priority=1, ttl=30000)
-        target = Target(client_type="all")
-        return Message.create(MessageType.MOTION_COMMAND, payload, self.client_id, 
-                              target=target, metadata=metadata)
+        metadata = {"priority": 1, "ttl": 30000}
+        target = {"client_type": "all"}
+        return self.build_message(MessageType.MOTION_COMMAND.value, payload, target=target, metadata=metadata)
     
     # ==================== 指令确认消息 ====================
     
@@ -127,8 +170,8 @@ class MessageBuilder:
             "status": status.value if isinstance(status, CommandAckStatus) else status,
             "message": message
         }
-        metadata = Metadata(request_id=request_id) if request_id else None
-        return Message.create(MessageType.COMMAND_ACK, payload, self.client_id, metadata=metadata)
+        metadata = {"request_id": request_id} if request_id else None
+        return self.build_message(MessageType.COMMAND_ACK.value, payload, metadata=metadata)
     
     # ==================== 状态消息 ====================
     
@@ -145,7 +188,7 @@ class MessageBuilder:
         }
         if estimated_completion_ms is not None:
             payload["estimated_completion_ms"] = estimated_completion_ms
-        return Message.create(MessageType.EXECUTION_STATUS, payload, self.client_id)
+        return self.build_message(MessageType.EXECUTION_STATUS.value, payload)
     
     def build_robot_status(self, joint_positions: List[float],
                            tcp_position: Dict[str, float] = None,
@@ -175,4 +218,4 @@ class MessageBuilder:
                 "error_message": None
             }
         }
-        return Message.create(MessageType.ROBOT_STATUS, payload, self.client_id)
+        return self.build_message(MessageType.ROBOT_STATUS.value, payload)

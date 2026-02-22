@@ -38,6 +38,7 @@ class MessageType(Enum):
     POSE_TRANSFORM_RESULT = "pose_transform_result"
     
     # 指令消息
+    MODEL_COMMAND = "model_command"
     MOTION_COMMAND = "motion_command"
     GRASP_COMMAND = "grasp_command"
     SYSTEM_COMMAND = "system_command"

@@ -1,4 +1,5 @@
 # 指令处理器 - 连接消息路由与指令执行
+import json
 from typing import Dict, Any
 
 from ..protocol.message import MessageType, ExecutionStatus, CommandAckStatus
@@ -22,6 +23,7 @@ class CommandHandler:
     
     def _register_handlers(self):
         """注册指令消息处理器"""
+        self.router.register_handler(MessageType.MODEL_COMMAND, self._handle_model_command)
         self.router.register_handler(MessageType.MOTION_COMMAND, self._handle_motion_command)
         self.router.register_handler(MessageType.GRASP_COMMAND, self._handle_grasp_command)
         self.router.register_handler(MessageType.SYSTEM_COMMAND, self._handle_system_command)
@@ -40,6 +42,17 @@ class CommandHandler:
     
     def _handle_system_command(self, message: Dict[str, Any]):
         self._process_command(message)
+
+    def _handle_model_command(self, message: Dict[str, Any]):
+        """处理服务端下发的 model_command。"""
+        print("[ModelCommand] Received:")
+        print(json.dumps(message, ensure_ascii=False, indent=2))
+
+        result = self.executor.execute_model_command(message)
+        if result.success:
+            print(f"[ModelCommand] Executed: {result.message}")
+        else:
+            print(f"[ModelCommand] Failed: {result.message}")
     
     def _process_command(self, message: Dict[str, Any]):
         """处理指令的通用流程"""
